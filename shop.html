@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GXP STORE - Toko Online (Efek Penuh)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    
+    <style>
+        /* Konfigurasi Global & Tema Warna Ungu-Hitam */
+        :root {
+            --primary-color: #9333ea; 
+            --secondary-color: #d8b4fe; 
+            --background-dark: #0a0a0a; 
+            --text-light: #f3f4f6; 
+            --text-dark: #e5e7eb; 
+            --card-bg: #1a1a1a; 
+            --border-color: #3f3f46; 
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background-dark);
+            color: var(--text-dark);
+            overflow-x: hidden;
+            /* Penting: Set minimal tinggi 100% viewport */
+            min-height: 100vh; 
+        }
+        
+        /* 1. Efek Neon/Glow pada Nama Toko */
+        .neon-text {
+            color: var(--text-light);
+            text-shadow: 
+                0 0 7px var(--secondary-color),
+                0 0 10px var(--secondary-color),
+                0 0 21px var(--primary-color),
+                0 0 42px var(--primary-color),
+                0 0 82px var(--primary-color),
+                0 0 92px var(--primary-color),
+                0 0 102px var(--primary-color),
+                0 0 151px var(--primary-color);
+            transition: text-shadow 0.3s ease-in-out;
+        }
+        .neon-text:hover {
+             text-shadow: 
+                0 0 10px var(--secondary-color),
+                0 0 20px var(--secondary-color),
+                0 0 30px var(--primary-color),
+                0 0 60px var(--primary-color);
+        }
+
+        /* 2. Canvas Background Effect - FIX: Position: absolute untuk mengikuti scroll */
+        #particle-canvas {
+            position: absolute; 
+            top: 0;
+            left: 0;
+            width: 100%;
+            /* Height diatur oleh JavaScript */
+            z-index: -1; 
+            opacity: 0.8;
+        }
+
+        /* 3. Kontainer Konten utama di atas Canvas */
+        #main-container {
+            position: relative;
+            z-index: 10;
+        }
+
+        .header-bg { background-color: rgba(10, 10, 10, 0.95); 
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+        .text-primary { color: var(--primary-color); }
+        .bg-primary { background-color: var(--primary-color); }
+        .hover\:bg-primary-dark:hover { background-color: #7e22ce; } 
+        .border-primary { border-color: var(--primary-color); }
+
+        /* Sidebar and Overlay Transitions */
+        #menu-sidebar {
+            transition: transform 0.3s ease-in-out;
+            box-shadow: 5px 0 20px rgba(0, 0, 0, 0.5);
+            z-index: 50;
+            background-color: var(--card-bg);
+            border-right: 1px solid var(--border-color);
+        }
+        #menu-sidebar { transform: translateX(-100%); }
+        .menu-open #menu-sidebar { transform: translateX(0); }
+        #overlay { background-color: rgba(0, 0, 0, 0.7); }
+
+        /* Card Styling */
+        .product-card {
+            height: 100%; 
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; 
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+        }
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4);
+            border-color: var(--primary-color);
+        }
+        
+        /* Layout Grid Responsif */
+        .product-grid {
+            display: grid; 
+            grid-template-columns: repeat(2, minmax(0, 1fr)); 
+            gap: 1.5rem;
+        }
+        @media (min-width: 640px) { .product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+        @media (min-width: 1024px) { .product-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+        @media (min-width: 1280px) { .product-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+        
+        /* Tab Styling */
+        .tab-button.active {
+            border-bottom: 2px solid var(--primary-color);
+            color: var(--text-light);
+        }
+
+        /* Custom Scrollbar Styling */
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #2a2a2a; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #555; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #777; }
+        
+        /* Notifikasi Top-Down */
+        #top-down-notification {
+            position: fixed;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100%);
+            transition: transform 0.5s ease-out;
+            z-index: 100;
+            padding: 1rem 2rem;
+            border-bottom-left-radius: 0.75rem;
+            border-bottom-right-radius: 0.75rem;
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+            min-width: 300px;
+        }
+        #top-down-notification.show {
+            transform: translateX(-50%) translateY(0);
+        }
+    </style>
+</head>
+<body>
+    
+    <canvas id="particle-canvas"></canvas>
+
+    <div id="main-container" class="min-h-screen">
+    
+        <div id="overlay" class="fixed inset-0 bg-black bg-opacity-70 z-40 hidden" onclick="closeAllModals()"></div>
+
+        <header class="sticky top-0 header-bg shadow-xl z-30">
+            <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+                <button id="menu-btn" class="p-2 rounded-full hover:bg-gray-800 transition text-gray-300" onclick="toggleMenuSidebar('contact')">
+                    <i class="fa-solid fa-bars text-xl"></i>
+                </button>
+
+                <h1 class="text-3xl font-extrabold tracking-wider neon-text">GXP <span class="text-primary">STORE</span></h1>
+
+                <div class="w-10"></div> 
+            </div>
+        </header>
+
+        <div id="menu-sidebar" class="fixed top-0 left-0 h-full w-80 p-6 pt-20 flex flex-col">
+            
+            <div class="flex border-b border-gray-700 mb-4">
+                <button id="contact-tab-btn" class="tab-button flex-1 py-3 text-sm font-semibold text-gray-400 hover:text-gray-100 active" onclick="showMenuTab('contact')">
+                    <i class="fa-solid fa-headset mr-2"></i> Info
+                </button>
+                <button id="history-tab-btn" class="tab-button flex-1 py-3 text-sm font-semibold text-gray-400 hover:text-gray-100" onclick="showMenuTab('history')">
+                    <i class="fa-solid fa-history mr-2"></i> Riwayat
+                </button>
+            </div>
+
+            <div class="overflow-y-auto custom-scrollbar flex-grow pr-2 -mr-2">
+                <div id="contact-tab" class="tab-content space-y-8">
+                    <h2 class="text-xl font-bold text-primary">Informasi Order</h2>
+                    <div class="space-y-4 text-gray-300">
+                        <p>Semua order akan dikirim melalui Bot Telegram ke admin. Mohon pastikan Anda mengisi Nomor WhatsApp atau Nama Telegram di form order agar admin dapat menghubungi Anda.</p>
+                        <p class="text-sm italic text-gray-400">Anda dapat melihat status pesanan di tab Riwayat.</p>
+                    </div>
+                </div>
+
+                <div id="history-tab" class="tab-content hidden space-y-4">
+                    <h2 class="text-xl font-bold text-primary mb-4">Riwayat Transaksi</h2>
+                    <div id="history-items-container">
+                        <p class="text-gray-500 italic text-center py-4">Tidak ada riwayat transaksi.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <main class="container mx-auto p-4 md:p-8">
+            <div id="product-list" class="space-y-12">
+                </div>
+        </main>
+    </div> <div id="order-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden p-4">
+        <div class="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-xs sm:max-w-sm transform transition-all border border-gray-700">
+            <div class="flex justify-between items-center mb-4 border-b border-gray-700 pb-3">
+                <h3 class="text-lg font-bold text-primary flex items-center">
+                    <i class="fa-solid fa-clipboard-check mr-2"></i> KONFIRMASI ORDER
+                </h3>
+                <button onclick="closeOrderModal()" class="text-gray-400 hover:text-gray-100 p-1 rounded-full hover:bg-gray-700 transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <form id="order-form" onsubmit="submitOrder(event)">
+                <div id="order-product-details" class="mb-5 p-3 rounded-lg border border-gray-700 bg-gray-900 flex items-center space-x-4">
+                    </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label for="wa-input" class="block text-xs font-medium text-gray-300 mb-1">Nomor WhatsApp (Wajib diisi salah satu)</label>
+                        <input type="tel" id="wa-input" placeholder="Cth: +62812xxxx atau 0812xxxx" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm placeholder-gray-500 focus:ring-primary focus:border-primary transition" />
+                        <p class="text-xs text-gray-500 mt-1">Sertakan kode negara (cth: +62) untuk internasional.</p>
+                    </div>
+
+                    <div>
+                        <label for="tg-input" class="block text-xs font-medium text-gray-300 mb-1">Nama Telegram (Wajib diisi salah satu)</label>
+                        <input type="text" id="tg-input" placeholder="Cth: @username_telegram" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm placeholder-gray-500 focus:ring-primary focus:border-primary transition" />
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full bg-green-600 text-white p-3 mt-6 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center shadow-lg shadow-green-900/50">
+                    <i class="fa-solid fa-paper-plane mr-2"></i> KIRIM ORDER SEKARANG
+                </button>
+            </form>
+            <p class="text-xs text-gray-500 mt-4 text-center">Data akan dikirim ke Bot Telegram admin.</p>
+        </div>
+    </div>
+    
+    <div id="top-down-notification" class="bg-green-600 text-white hidden">
+        <div class="flex items-center">
+            <i class="fa-solid fa-check-circle text-2xl mr-3"></i>
+            <span id="notification-message" class="font-semibold"></span>
+        </div>
+    </div>
+
+
+    <script>
+        // Data Produk Statis
+        const products = [
+            { id: 1, name: "1 HARI", category: "APK BUG", price: 8000, image: "gambar1.jpg" },
+            { id: 2, name: "3 HARI", category: "APK BUG", price: 14000, image: "gambar1.jpg" },
+            { id: 3, name: "1 MINGGU", category: "APK BUG", price: 20000, image: "gambar1.jpg" },
+            { id: 4, name: "30 HARI BASIC", category: "APK BUG", price: 35000, image: "gambar1.jpg" },
+            { id: 5, name: "PERMA FULL ACCESS", category: "APK BUG", price: 65000, image: "gambar1.jpg" },
+            { id: 6, name: "PANEL 1H", category: "PANEL", price: 50000, image: "violex.png" },
+            { id: 7, name: "PANEL 3H", category: "PANEL", price: 100000, image: "violex.png" },
+            { id: 8, name: "PANEL 7H", category: "PANEL", price: 150000, image: "violex.png" },
+            { id: 9, name: "PANEL 30H", category: "PANEL", price: 250000, image: "violex.png" },
+            { id: 10, name: "PANEL PERMA", category: "PANEL", price: 500000, image: "violex.png" },
+            { id: 11, name: "BASE APK BUG KERANGKA", category: "BASE APK BUG", price: 30000, image: "violex.png" },
+            { id: 12, name: "SC VIOLEX V2", category: "SC VIOLEX V2", price: 15000, image: "violex.png" }, 
+        ];
+
+        // --- KONFIGURASI TELEGRAM BOT (HARAP DIGANTI) ---
+        const TELEGRAM_BOT_TOKEN = "8231879475:AAEKOAEMB2RY-7BUxciMnCQkGnn-eOmmSIA";
+        const TELEGRAM_CHAT_ID = "8007345794"; 
+        // --------------------------------------------------
+
+        let historyItems = [];
+        let tempOrderData = null; 
+
+        // --- Fungsi Helper ---
+        const formatRupiah = (number) => {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(number);
+        };
+        const findProductById = (id) => products.find(p => p.id === id);
+
+        // --- LocalStorage Functions ---
+        function loadHistory() {
+            try {
+                const storedHistory = localStorage.getItem('gxp_history');
+                if (storedHistory) {
+                    historyItems = JSON.parse(storedHistory);
+                }
+            } catch (e) {
+                historyItems = [];
+            }
+        }
+
+        function saveHistory() {
+            historyItems.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            localStorage.setItem('gxp_history', JSON.stringify(historyItems));
+            updateHistoryUI(); 
+        }
+
+        function recordHistory(itemData, status) {
+            const newHistoryItem = {
+                name: itemData.name,
+                price: itemData.price,
+                timestamp: new Date().toISOString(),
+                status: status, 
+                image: itemData.image,
+            };
+            
+            historyItems.push(newHistoryItem);
+            saveHistory();
+        }
+
+        // --- VALIDASI INPUT ---
+        function isValidWhatsapp(number) {
+            let cleaned = number.replace(/[\s\-\(\)]/g, ''); 
+            if (cleaned.length === 0) { return { valid: true, cleanedNumber: '' }; }
+            let startsWithPlus = cleaned.startsWith('+');
+            let numberOnly = startsWithPlus ? cleaned.substring(1) : cleaned;
+            if (!/^\d+$/.test(numberOnly)) { return { valid: false, message: "Nomor WhatsApp hanya boleh mengandung angka, spasi, atau simbol '+' (di awal)." }; }
+            if (!startsWithPlus && numberOnly.startsWith('0')) { numberOnly = '62' + numberOnly.substring(1); }
+            if (numberOnly.length < 7 || numberOnly.length > 15) { return { valid: false, message: "Nomor WhatsApp harus antara 7 hingga 15 digit setelah kode negara." }; }
+            const finalNumber = numberOnly.startsWith('62') ? `+${numberOnly}` : (startsWithPlus ? `+${numberOnly}` : numberOnly);
+            return { valid: true, cleanedNumber: finalNumber };
+        }
+
+        function isValidTelegram(username) {
+            let cleaned = username.trim();
+            if (cleaned.length === 0) { return { valid: true, cleanedUsername: '' }; }
+            if (cleaned.startsWith('@')) { cleaned = cleaned.substring(1); }
+            if (cleaned.length < 5 || cleaned.length > 32) { return { valid: false, message: "Nama Telegram harus antara 5 hingga 32 karakter." }; }
+            if (!/^[a-zA-Z0-9_]+$/.test(cleaned)) { return { valid: false, message: "Nama Telegram hanya boleh mengandung huruf, angka, dan underscore (_)." }; }
+            return { valid: true, cleanedUsername: `@${cleaned}` };
+        }
+
+        // --- UI Rendering ---
+
+        function renderProducts() {
+            const container = document.getElementById('product-list');
+            container.innerHTML = '';
+            
+            const categories = products.reduce((acc, product) => {
+                if (!acc[product.category]) { acc[product.category] = []; }
+                acc[product.category].push(product);
+                return acc;
+            }, {});
+
+            for (const category in categories) {
+                const categorySection = document.createElement('section');
+                categorySection.classList.add('mb-12');
+                categorySection.innerHTML = `
+                    <h2 class="text-3xl font-bold text-gray-100 mb-6 border-b-4 border-primary pb-2 tracking-wide">${category}</h2>
+                    <div class="product-grid">
+                        ${categories[category].map(product => `
+                            <div class="product-card rounded-xl p-4 shadow-lg">
+                                <div class="flex flex-col items-center text-center mb-4 flex-grow">
+                                    <img src="${product.image}" alt="${product.name}" onerror="this.onerror=null;this.src='violex.png'" class="w-28 h-28 object-cover rounded-lg mb-3 shadow-sm">
+                                    <p class="text-base font-extrabold text-gray-100 mb-1">${product.name}</p>
+                                    <p class="text-lg font-semibold text-primary">${formatRupiah(product.price)}</p>
+                                </div>
+                                <div class="flex space-x-2 w-full pt-4 border-t border-gray-700/50">
+                                    <button onclick="openOrderModal(${product.id})" class="flex-1 flex items-center justify-center p-3 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark transition font-medium shadow-md">
+                                        <i class="fa-solid fa-bag-shopping mr-1"></i> ORDER
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                container.appendChild(categorySection);
+            }
+        }
+
+        function updateHistoryUI() {
+            const container = document.getElementById('history-items-container');
+            container.innerHTML = '';
+
+            if (historyItems.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 italic text-center py-4">Tidak ada riwayat transaksi.</p>';
+                return;
+            }
+
+            historyItems.forEach(item => {
+                const isOrder = item.status === 'ordered';
+                const statusColor = isOrder ? 'bg-green-700' : 'bg-red-700';
+                const statusIcon = isOrder ? 'fa-check' : 'fa-trash-can';
+                const statusText = isOrder ? 'SELESAI MEMESAN' : 'DIHAPUS';
+                const dateString = new Date(item.timestamp).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+                container.innerHTML += `
+                    <div class="p-3 rounded-xl border border-gray-700 bg-gray-800">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center">
+                                <img src="${item.image}" alt="${item.name}" onerror="this.onerror=null;this.src='violex.png'" class="w-8 h-8 object-cover rounded mr-3 border border-gray-600">
+                                <div>
+                                    <p class="font-semibold text-sm text-gray-100">${item.name}</p>
+                                    <p class="text-xs font-bold ${isOrder ? 'text-green-400' : 'text-red-400'}">${formatRupiah(item.price)}</p>
+                                </div>
+                            </div>
+                            <span class="inline-flex items-center text-xs font-semibold px-2 py-1 rounded-full ${statusColor} text-white">
+                                <i class="fa-solid ${statusIcon} mr-1"></i> ${statusText}
+                            </span>
+                        </div>
+                        <p class="text-xs text-gray-500 text-right">${dateString}</p>
+                    </div>
+                `;
+            });
+        }
+
+        // --- Modal & Sidebar Functions ---
+        
+        window.showMenuTab = (tabName) => {
+            const tabs = ['contact', 'history'];
+            tabs.forEach(tab => {
+                document.getElementById(`${tab}-tab`).classList.add('hidden');
+                document.getElementById(`${tab}-tab-btn`).classList.remove('active');
+            });
+            document.getElementById(`${tabName}-tab`).classList.remove('hidden');
+            document.getElementById(`${tabName}-tab-btn`).classList.add('active');
+        };
+
+        window.toggleMenuSidebar = (defaultTab = 'contact') => {
+            document.body.classList.toggle('menu-open');
+            const sidebar = document.getElementById('menu-sidebar');
+            const overlay = document.getElementById('overlay');
+            
+            if (document.body.classList.contains('menu-open')) {
+                sidebar.style.transform = 'translateX(0)';
+                overlay.classList.remove('hidden');
+                showMenuTab(defaultTab); 
+            } else {
+                sidebar.style.transform = 'translateX(-100%)';
+                overlay.classList.add('hidden');
+            }
+        };
+
+        window.closeAllModals = () => {
+            document.body.classList.remove('menu-open');
+            document.getElementById('menu-sidebar').style.transform = 'translateX(-100%)';
+            document.getElementById('order-modal').classList.add('hidden');
+            document.getElementById('overlay').classList.add('hidden');
+        };
+
+        window.openOrderModal = (productId) => {
+            closeAllModals(); 
+            const product = findProductById(productId);
+            if (!product) return;
+
+            tempOrderData = product; 
+            
+            document.getElementById('overlay').classList.remove('hidden');
+            const modal = document.getElementById('order-modal');
+
+            // Reset input fields
+            document.getElementById('wa-input').value = '';
+            document.getElementById('tg-input').value = '';
+
+            const detailsDiv = document.getElementById('order-product-details');
+            detailsDiv.innerHTML = `
+                <img src="${product.image}" alt="${product.name}" onerror="this.onerror=null;this.src='violex.png'" class="w-14 h-14 object-cover rounded-lg shadow-md border border-gray-600 flex-shrink-0">
+                <div class="flex-grow">
+                    <p class="text-sm text-gray-400">Anda memesan:</p>
+                    <p class="font-bold text-base text-gray-100 truncate">${product.name}</p>
+                    <p class="text-lg font-extrabold text-primary">${formatRupiah(product.price)}</p>
+                </div>
+            `;
+            
+            modal.classList.remove('hidden');
+        }
+
+        window.closeOrderModal = () => {
+            document.getElementById('order-modal').classList.add('hidden');
+            document.getElementById('overlay').classList.add('hidden');
+        };
+
+        async function submitOrder(event) {
+            event.preventDefault();
+
+            if (!tempOrderData) {
+                showToast("Kesalahan: Data produk tidak ditemukan.", 'bg-red-600', true);
+                return;
+            }
+
+            const waInput = document.getElementById('wa-input').value;
+            const tgInput = document.getElementById('tg-input').value;
+            const orderBtn = event.target.querySelector('button[type="submit"]');
+
+            const waValidation = isValidWhatsapp(waInput);
+            const tgValidation = isValidTelegram(tgInput);
+
+            let waNumberToSend = waValidation.cleanedNumber;
+            let tgNameToSend = tgValidation.cleanedUsername;
+
+            if (waNumberToSend.length === 0 && tgNameToSend.length === 0) {
+                 showToast("Peringatan: Mohon isi setidaknya Nomor WhatsApp atau Nama Telegram Anda.", 'bg-yellow-600', true);
+                 return;
+            }
+
+            if (!waValidation.valid) { showToast(`Validasi WhatsApp Gagal: ${waValidation.message}`, 'bg-red-600', true); return; }
+            if (!tgValidation.valid) { showToast(`Validasi Telegram Gagal: ${tgValidation.message}`, 'bg-red-600', true); return; }
+            
+            orderBtn.disabled = true;
+            orderBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Mengirim...';
+
+            closeOrderModal();
+
+            const waDisplay = waNumberToSend || '-';
+            const tgDisplay = tgNameToSend || '-';
+
+            const orderMessage = `
+OYY ADA PESANAN NICHH!
+-----------------------------
+NOMOR WHATSAPP: ${waDisplay}
+NAMA TELEGRAM: ${tgDisplay}
+-----------------------------
+ORDER: ${tempOrderData.name}
+HARGA: ${formatRupiah(tempOrderData.price)}
+-----------------------------
+`;
+            
+            const telegramApiUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+
+
+            try {
+                const response = await fetch(telegramApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: TELEGRAM_CHAT_ID,
+                        text: orderMessage,
+                        parse_mode: 'Markdown'
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.ok) {
+                    recordHistory(tempOrderData, 'ordered');
+                    showToast("Pengiriman selesai dan bakal di proses.", 'bg-green-600', true);
+                } else {
+                    showToast(`Gagal mengirim order ke Telegram. (${result.description || 'Unknown Error'})`, 'bg-red-600', true);
+                }
+
+            } catch (error) {
+                showToast("Gagal terhubung ke Telegram API. Cek koneksi internet.", 'bg-red-600', true);
+            } finally {
+                orderBtn.disabled = false;
+                orderBtn.innerHTML = '<i class="fa-solid fa-paper-plane mr-2"></i> KIRIM ORDER SEKARANG';
+                tempOrderData = null;
+            }
+        }
+
+        // --- Notifikasi Toast ---
+        function showToast(message, bgColor = 'bg-gray-800', isTopDown = false) {
+            if (isTopDown) {
+                const notification = document.getElementById('top-down-notification');
+                
+                notification.className = 'hidden'; 
+                notification.classList.add('text-white', 'p-4', 'rounded-b-lg', 'shadow-xl'); 
+                
+                notification.classList.remove('bg-green-600', 'bg-red-600', 'bg-yellow-600');
+                notification.classList.add(bgColor);
+                
+                const iconClass = bgColor.includes('green') ? 'fa-check-circle' : (bgColor.includes('red') ? 'fa-circle-xmark' : 'fa-triangle-exclamation');
+
+                notification.innerHTML = `<div class="flex items-center"><i class="fa-solid ${iconClass} text-2xl mr-3"></i><span id="notification-message" class="font-semibold">${message}</span></div>`;
+
+                notification.classList.remove('hidden');
+                
+                requestAnimationFrame(() => { notification.classList.add('show'); });
+                
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                    setTimeout(() => notification.classList.add('hidden'), 500);
+                }, 4000); 
+            }
+        }
+
+        // =========================================================
+        // SCRIPTS UNTUK EFEK PARTIKEL LATAR BELAKANG (PERBAIKAN TINGGI)
+        // =========================================================
+
+        const canvas = document.getElementById('particle-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        // Radius deteksi mouse diperkecil agar partikel tidak terlalu liar
+        let mouse = { x: null, y: null, radius: 100 }; 
+
+        // Class Partikel
+        class Particle {
+            constructor(x, y, directionX, directionY, size, color) {
+                this.x = x;
+                this.y = y;
+                this.directionX = directionX;
+                this.directionY = directionY;
+                this.size = size;
+                this.color = color;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2, false);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+
+            update() {
+                if (this.x > canvas.width || this.x < 0) { this.directionX = -this.directionX; }
+                if (this.y > canvas.height || this.y < 0) { this.directionY = -this.directionY; }
+
+                this.x += this.directionX;
+                this.y += this.directionY;
+
+                // Interaksi mouse
+                const dx = mouse.x - this.x;
+                const dy = mouse.y - this.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < mouse.radius + this.size) {
+                    const angle = Math.atan2(dy, dx);
+                    const force = (mouse.radius - distance) / mouse.radius;
+                    const speed = 1.5; // Kecepatan dorongan dikurangi
+
+                    this.x -= Math.cos(angle) * speed * force;
+                    this.y -= Math.sin(angle) * speed * force;
+                }
+
+                this.draw();
+            }
+        }
+
+        // Inisialisasi partikel
+        function init() {
+            particles = [];
+            // Sesuaikan jumlah partikel berdasarkan area kanvas
+            const numberOfParticles = (canvas.height * canvas.width) / 20000;
+            const colors = ['#9333ea', '#d8b4fe', '#f3f4f6']; 
+
+            for (let i = 0; i < numberOfParticles; i++) {
+                let size = (Math.random() * 4) + 1; // Ukuran diperkecil
+                let x = (Math.random() * (canvas.width - size * 4)) + size * 2;
+                let y = (Math.random() * (canvas.height - size * 4)) + size * 2;
+                let directionX = (Math.random() * 0.4) - 0.2; // Kecepatan dikurangi
+                let directionY = (Math.random() * 0.4) - 0.2; // Kecepatan dikurangi
+                let color = colors[Math.floor(Math.random() * colors.length)];
+                
+                particles.push(new Particle(x, y, directionX, directionY, size, color));
+            }
+        }
+
+        // Menghubungkan titik-titik
+        function connect() {
+            let opacityValue = 1;
+            const linkDistance = 100; 
+
+            for (let a = 0; a < particles.length; a++) {
+                for (let b = a; b < particles.length; b++) {
+                    const dist = Math.sqrt(
+                        ((particles[a].x - particles[b].x) * (particles[a].x - particles[b].x)) + 
+                        ((particles[a].y - particles[b].y) * (particles[a].y - particles[b].y))
+                    );
+
+                    if (dist < linkDistance) {
+                        opacityValue = 1 - (dist / linkDistance);
+                        ctx.strokeStyle = `rgba(147, 51, 234, ${opacityValue})`; 
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.moveTo(particles[a].x, particles[a].y);
+                        ctx.lineTo(particles[b].x, particles[b].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        // Loop Animasi
+        function animate() {
+            // Bersihkan frame sebelumnya dengan warna background utama
+            ctx.fillStyle = 'rgba(10, 10, 10, 0.1)'; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            connect();
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update();
+                particles[i].draw();
+            }
+            requestAnimationFrame(animate);
+        }
+
+        /**
+         * FIX UTAMA: Mengatur ulang ukuran Canvas berdasarkan tinggi konten DOM yang sebenarnya.
+         */
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            
+            // Dapatkan tinggi maksimum dari seluruh dokumen, termasuk area yang di-scroll
+            const docHeight = Math.max(
+                document.body.scrollHeight, 
+                document.documentElement.scrollHeight,
+                document.documentElement.offsetHeight,
+                window.innerHeight
+            );
+            
+            // Atur tinggi canvas. Tambahkan sedikit margin ekstra (+100) untuk aman.
+            canvas.height = docHeight + 100; 
+            
+            // PENTING: Inisialisasi ulang partikel agar tersebar di seluruh area baru
+            init(); 
+        }
+
+        // Event listener untuk Mouse Movement (Ditambah window.scrollY karena canvas absolute)
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = event.x;
+            mouse.y = event.y + window.scrollY; 
+        });
+        
+        window.addEventListener('mouseout', () => {
+            mouse.x = undefined;
+            mouse.y = undefined;
+        });
+
+        // Event listener untuk mengatur ulang canvas saat window diubah ukurannya
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+        });
+
+        // Inisialisasi: Muat data dan render produk
+        function initializeApp() {
+            // 1. Muat data dan render produk (mengisi DOM)
+            loadHistory(); 
+            renderProducts();
+            updateHistoryUI(); 
+            showMenuTab('contact'); 
+            
+            // 2. Tunggu sebentar (100ms) untuk memastikan DOM render selesai dan tinggi terhitung akurat
+            setTimeout(() => {
+                resizeCanvas(); // Hitung tinggi canvas berdasarkan konten yang sudah terisi
+                animate(); // Mulai loop animasi
+            }, 100); 
+        }
+
+        document.addEventListener('DOMContentLoaded', initializeApp);
+        window.addEventListener('load', resizeCanvas); // Jaga-jaga jika ada elemen yang dimuat lambat
+    </script>
+</body>
+</html>
